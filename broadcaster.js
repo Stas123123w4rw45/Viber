@@ -3,50 +3,79 @@ const { loadStores, loadSupportStores } = require('./excelParser');
 
 const VIBER_POST_URL = "https://chatapi.viber.com/pa/post";
 const VIBER_SET_WEBHOOK_URL = "https://chatapi.viber.com/pa/set_webhook";
+const VIBER_ACCOUNT_INFO_URL = "https://chatapi.viber.com/pa/get_account_info";
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Кеш: які токени вже мають встановлений Webhook
-const webhookCache = new Set();
+// Кеш: token -> { webhookSet: bool, adminId: string }
+const channelCache = new Map();
 
 /**
- * Встановлює Webhook для токена каналу (потрібно 1 раз перед першим постом)
- * Для каналів достатньо порожнього URL - це просто "активує" API
+ * Отримує інформацію про канал і знаходить суперадміна
  */
-async function ensureWebhook(token, webhookUrl) {
-    if (webhookCache.has(token)) return;
-
+async function getChannelAdmin(token) {
     try {
-        const res = await axios.post(VIBER_SET_WEBHOOK_URL, {
-            url: webhookUrl,
-            send_name: true,
-            send_photo: true
-        }, {
-            headers: {
-                'X-Viber-Auth-Token': token,
-                'Content-Type': 'application/json'
-            }
+        const res = await axios.post(VIBER_ACCOUNT_INFO_URL, {}, {
+            headers: { 'X-Viber-Auth-Token': token, 'Content-Type': 'application/json' }
         });
 
-        if (res.data.status === 0) {
-            webhookCache.add(token);
-            console.log(`🔗 Webhook встановлено для токена ${token.substring(0, 10)}...`);
-        } else {
-            console.warn(`⚠️ Webhook: ${res.data.status_message} for ${token.substring(0, 10)}...`);
+        if (res.data.status === 0 && res.data.members) {
+            const superadmin = res.data.members.find(m => m.role === 'superadmin');
+            if (superadmin) return superadmin.id;
+            // Якщо немає суперадміна, беремо першого адміна
+            const admin = res.data.members.find(m => m.role === 'admin');
+            if (admin) return admin.id;
+            // Беремо будь-якого учасника
+            if (res.data.members.length > 0) return res.data.members[0].id;
         }
+        return null;
     } catch (err) {
-        console.error(`❌ Webhook error: ${err.message}`);
+        console.error(`❌ Помилка get_account_info: ${err.message}`);
+        return null;
     }
 }
 
 /**
- * Відправляє повідомлення в один канал через Viber Channel Post API
+ * Встановлює Webhook та отримує admin ID для каналу
+ */
+async function ensureChannelReady(token, webhookUrl) {
+    if (channelCache.has(token)) return channelCache.get(token);
+
+    // 1. Встановлюємо webhook
+    try {
+        await axios.post(VIBER_SET_WEBHOOK_URL, {
+            url: webhookUrl,
+            send_name: true,
+            send_photo: true
+        }, {
+            headers: { 'X-Viber-Auth-Token': token, 'Content-Type': 'application/json' }
+        });
+    } catch (err) {
+        console.warn(`⚠️ Webhook помилка для ${token.substring(0, 10)}...: ${err.message}`);
+    }
+
+    // 2. Отримуємо admin ID
+    const adminId = await getChannelAdmin(token);
+
+    const info = { adminId };
+    channelCache.set(token, info);
+    console.log(`🔗 Канал готовий: ${token.substring(0, 10)}... admin=${adminId ? adminId.substring(0, 10) + '...' : 'N/A'}`);
+    return info;
+}
+
+/**
+ * Відправляє повідомлення в один канал
  */
 async function postToChannel(token, text, imageUrl, webhookUrl) {
-    // Спершу переконуємось що Webhook встановлено
-    await ensureWebhook(token, webhookUrl);
+    const channelInfo = await ensureChannelReady(token, webhookUrl);
 
-    const message = {};
+    if (!channelInfo.adminId) {
+        return { status: 99, status_message: 'Не вдалося знайти адміна каналу' };
+    }
+
+    const message = {
+        from: channelInfo.adminId
+    };
 
     if (imageUrl && text) {
         message.type = 'picture';
@@ -60,8 +89,6 @@ async function postToChannel(token, text, imageUrl, webhookUrl) {
         message.type = 'text';
         message.text = text;
     }
-
-    message.sender = { name: "Адмін" };
 
     const response = await axios.post(VIBER_POST_URL, message, {
         headers: {
