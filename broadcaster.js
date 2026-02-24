@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { loadStores, loadSupportStores } = require('./excelParser');
+const { getAllStores, getSupportStores } = require('./database');
 
 const VIBER_POST_URL = "https://chatapi.viber.com/pa/post";
 const VIBER_SET_WEBHOOK_URL = "https://chatapi.viber.com/pa/set_webhook";
@@ -7,75 +7,60 @@ const VIBER_ACCOUNT_INFO_URL = "https://chatapi.viber.com/pa/get_account_info";
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Кеш: token -> { webhookSet: bool, adminId: string }
+// Кеш: token -> { adminId }
 const channelCache = new Map();
 
 /**
- * Отримує інформацію про канал і знаходить суперадміна
+ * Отримує Viber ID суперадміна каналу (потрібно для поля 'from')
  */
 async function getChannelAdmin(token) {
     try {
         const res = await axios.post(VIBER_ACCOUNT_INFO_URL, {}, {
             headers: { 'X-Viber-Auth-Token': token, 'Content-Type': 'application/json' }
         });
-
         if (res.data.status === 0 && res.data.members) {
-            const superadmin = res.data.members.find(m => m.role === 'superadmin');
-            if (superadmin) return superadmin.id;
-            // Якщо немає суперадміна, беремо першого адміна
-            const admin = res.data.members.find(m => m.role === 'admin');
-            if (admin) return admin.id;
-            // Беремо будь-якого учасника
-            if (res.data.members.length > 0) return res.data.members[0].id;
+            const admin = res.data.members.find(m => m.role === 'superadmin')
+                || res.data.members.find(m => m.role === 'admin')
+                || res.data.members[0];
+            return admin ? admin.id : null;
         }
         return null;
     } catch (err) {
-        console.error(`❌ Помилка get_account_info: ${err.message}`);
+        console.error(`❌ get_account_info: ${err.message}`);
         return null;
     }
 }
 
 /**
- * Встановлює Webhook та отримує admin ID для каналу
+ * Підготовка каналу: встановлення webhook + отримання admin ID
  */
 async function ensureChannelReady(token, webhookUrl) {
     if (channelCache.has(token)) return channelCache.get(token);
 
-    // 1. Встановлюємо webhook
     try {
         await axios.post(VIBER_SET_WEBHOOK_URL, {
-            url: webhookUrl,
-            send_name: true,
-            send_photo: true
+            url: webhookUrl, send_name: true, send_photo: true
         }, {
             headers: { 'X-Viber-Auth-Token': token, 'Content-Type': 'application/json' }
         });
     } catch (err) {
-        console.warn(`⚠️ Webhook помилка для ${token.substring(0, 10)}...: ${err.message}`);
+        console.warn(`⚠️ Webhook: ${err.message}`);
     }
 
-    // 2. Отримуємо admin ID
     const adminId = await getChannelAdmin(token);
-
     const info = { adminId };
     channelCache.set(token, info);
-    console.log(`🔗 Канал готовий: ${token.substring(0, 10)}... admin=${adminId ? adminId.substring(0, 10) + '...' : 'N/A'}`);
     return info;
 }
 
 /**
- * Відправляє повідомлення в один канал
+ * Відправка в один канал
  */
 async function postToChannel(token, text, imageUrl, webhookUrl) {
-    const channelInfo = await ensureChannelReady(token, webhookUrl);
+    const { adminId } = await ensureChannelReady(token, webhookUrl);
+    if (!adminId) return { status: 99, status_message: 'Не знайдено адміна каналу' };
 
-    if (!channelInfo.adminId) {
-        return { status: 99, status_message: 'Не вдалося знайти адміна каналу' };
-    }
-
-    const message = {
-        from: channelInfo.adminId
-    };
+    const message = { from: adminId };
 
     if (imageUrl && text) {
         message.type = 'picture';
@@ -91,53 +76,35 @@ async function postToChannel(token, text, imageUrl, webhookUrl) {
     }
 
     const response = await axios.post(VIBER_POST_URL, message, {
-        headers: {
-            'X-Viber-Auth-Token': token,
-            'Content-Type': 'application/json'
-        }
+        headers: { 'X-Viber-Auth-Token': token, 'Content-Type': 'application/json' }
     });
-
     return response.data;
 }
 
-/**
- * Розсилка по всіх магазинах
- */
 async function broadcastToAll(text, imageUrl, onProgress, webhookUrl) {
-    const stores = loadStores();
+    const stores = await getAllStores();
     return await doBroadcast(stores, text, imageUrl, onProgress, webhookUrl);
 }
 
-/**
- * Розсилка тільки по магазинах на підтримці
- */
 async function broadcastToSupport(text, imageUrl, onProgress, webhookUrl) {
-    const stores = loadSupportStores();
+    const stores = await getSupportStores();
     return await doBroadcast(stores, text, imageUrl, onProgress, webhookUrl);
 }
 
-/**
- * Виконання розсилки з rate-limiting
- */
 async function doBroadcast(stores, text, imageUrl, onProgress, webhookUrl) {
-    if (stores.length === 0) {
-        return { success: 0, errors: 0, total: 0, details: [] };
-    }
+    if (stores.length === 0) return { success: 0, errors: 0, total: 0, details: [] };
 
-    let successCount = 0;
-    let errorCount = 0;
+    let successCount = 0, errorCount = 0;
     const details = [];
     const total = stores.length;
 
     console.log(`🚀 Розсилка на ${total} канал(ів)...`);
-
     if (onProgress) onProgress({ total, progress: 0, success: 0, errors: 0 });
 
     for (let i = 0; i < stores.length; i++) {
         const store = stores[i];
         try {
             const result = await postToChannel(store.token, text, imageUrl, webhookUrl);
-
             if (result.status === 0) {
                 successCount++;
                 details.push({ name: store.name, status: 'ok' });
@@ -149,21 +116,16 @@ async function doBroadcast(stores, text, imageUrl, onProgress, webhookUrl) {
             }
         } catch (err) {
             errorCount++;
-            const errMsg = err.response ? JSON.stringify(err.response.data) : err.message;
-            details.push({ name: store.name, status: 'error', message: errMsg });
-            console.log(`❌ [${i + 1}/${total}] ${store.name}: ${errMsg}`);
+            const msg = err.response ? JSON.stringify(err.response.data) : err.message;
+            details.push({ name: store.name, status: 'error', message: msg });
+            console.log(`❌ [${i + 1}/${total}] ${store.name}: ${msg}`);
         }
 
         if (onProgress) onProgress({ total, progress: i + 1, success: successCount, errors: errorCount });
-
-        // Затримка 1.5 секунди між відправками (захист від бану)
-        if (i < stores.length - 1) {
-            await delay(1500);
-        }
+        if (i < stores.length - 1) await delay(1500);
     }
 
-    console.log(`✅ Розсилку завершено! Успішно: ${successCount}, Помилок: ${errorCount}`);
-
+    console.log(`✅ Завершено! Успішно: ${successCount}, Помилок: ${errorCount}`);
     return { success: successCount, errors: errorCount, total, details };
 }
 
