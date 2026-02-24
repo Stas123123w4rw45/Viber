@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viber Менеджер Розсилок</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginScreen" class="screen active">
+    <div class="login-card">
+        <div class="logo">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="url(#g1)"/><path d="M24 12c-8 0-12 4.5-12 10 0 4 2.5 7 6 8.5v4.5l4-2.5c.6.1 1.3.2 2 .2 8 0 12-4.5 12-10S32 12 24 12z" fill="#fff"/><defs><linearGradient id="g1" x1="0" y1="0" x2="48" y2="48"><stop stop-color="#7B5EE0"/><stop offset="1" stop-color="#5B3DBF"/></linearGradient></defs></svg>
+        </div>
+        <h1>Viber Менеджер</h1>
+        <p class="subtitle">Масова розсилка по 170+ каналах</p>
+        <div class="input-group">
+            <input type="password" id="passwordInput" placeholder="Введіть пароль" onkeydown="if(event.key==='Enter')login()">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="login()">Увійти</button>
+        <p id="loginError" class="error-text"></p>
+    </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashboard" class="screen">
+    <header>
+        <div class="header-left">
+            <h2>📡 Панель Розсилок</h2>
+        </div>
+        <div class="header-right">
+            <div class="stats-badge" id="statsAll">📦 Магазинів: <b>-</b></div>
+            <div class="stats-badge" id="statsSupport">🔧 Підтримка: <b>-</b></div>
+            <button class="btn btn-small btn-outline" onclick="logout()">Вийти</button>
+        </div>
+    </header>
+    
+    <main>
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab active" data-tab="broadcast" onclick="switchTab('broadcast')">📨 Розсилка</button>
+            <button class="tab" data-tab="database" onclick="switchTab('database')">📋 База Магазинів</button>
+        </div>
+        
+        <!-- TAB: BROADCAST -->
+        <div id="tab-broadcast" class="tab-content active">
+            <div class="card">
+                <h3>Створити пост для розсилки</h3>
+                
+                <div class="form-group">
+                    <label>📝 Текст повідомлення</label>
+                    <textarea id="broadcastText" rows="5" placeholder="Введіть текст поста тут..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>📷 Зображення (необов'язково)</label>
+                    <div class="file-upload" id="imageDropZone">
+                        <input type="file" id="broadcastImage" accept="image/*" onchange="previewImage(this)">
+                        <div class="file-upload-content" id="uploadPlaceholder">
+                            <span class="file-icon">📷</span>
+                            <p>Натисніть або перетягніть фото сюди</p>
+                        </div>
+                        <div class="image-preview" id="imagePreview" style="display:none">
+                            <img id="previewImg" src="">
+                            <button class="btn btn-small btn-danger" onclick="clearImage()">✕ Видалити</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="broadcast-actions">
+                    <button class="btn btn-primary btn-large" onclick="startBroadcast('all')">
+                        📢 Загальна розсилка
+                    </button>
+                    <button class="btn btn-secondary btn-large" onclick="startBroadcast('support')">
+                        🔧 Розсилка Підтримка
+                    </button>
+                </div>
+            </div>
+            
+            <!-- PROGRESS -->
+            <div class="card" id="progressCard" style="display:none">
+                <h3 id="progressTitle">🚀 Розсилка йде...</h3>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar" style="width:0%"></div>
+                </div>
+                <div class="progress-stats">
+                    <span id="progressCount">0 / 0</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-details">
+                    <span class="stat-success">✅ Успішно: <b id="successCount">0</b></span>
+                    <span class="stat-error">❌ Помилок: <b id="errorCount">0</b></span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB: DATABASE -->
+        <div id="tab-database" class="tab-content">
+            <div class="card">
+                <h3>📦 Завантажити базу магазинів (stores.xlsx)</h3>
+                <p class="hint">Excel файл з колонками: <b>Назва</b> і <b>Токен</b> (API ключ кожного каналу)</p>
+                <div class="file-upload">
+                    <input type="file" id="storesFile" accept=".xlsx,.xls" onchange="uploadExcel('stores')">
+                    <div class="file-upload-content">
+                        <span class="file-icon">📊</span>
+                        <p>Натисніть або перетягніть stores.xlsx</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>🔧 Завантажити список підтримки (support.xlsx)</h3>
+                <p class="hint">Окремий Excel файл з магазинами, які на підтримці. Формат аналогічний.</p>
+                <div class="file-upload">
+                    <input type="file" id="supportFile" accept=".xlsx,.xls" onchange="uploadExcel('support')">
+                    <div class="file-upload-content">
+                        <span class="file-icon">🔧</span>
+                        <p>Натисніть або перетягніть support.xlsx</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- CONFIRMATION MODAL -->
+<div class="modal-overlay" id="confirmModal" style="display:none">
+    <div class="modal-card">
+        <h3>⚠️ Підтвердження розсилки</h3>
+        <p id="confirmText">Ви дійсно хочете відправити цей пост у всі магазини?</p>
+        <div class="modal-preview" id="modalPreview"></div>
+        <div class="modal-actions">
+            <button class="btn btn-primary" onclick="confirmBroadcast()">✅ Так, розіслати!</button>
+            <button class="btn btn-outline" onclick="cancelBroadcast()">❌ Скасувати</button>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
