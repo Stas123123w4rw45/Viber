@@ -1,0 +1,20 @@
+{
+  "name": "viber-bot-relay",
+  "version": "1.0.0",
+  "description": "Viber Bot for managing 170+ store communities",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "form-data": "^4.0.0",
+    "node-schedule": "^2.1.1",
+    "sqlite3": "^5.1.6",
+    "uuid": "^9.0.1",
+    "viber-bot": "^1.0.16",
+    "xlsx": "^0.18.5"
+  }
+}
