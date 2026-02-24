@@ -2,10 +2,11 @@ const { Bot, Events, Message } = require('viber-bot');
 const { getStoresTokens } = require('./excelParser');
 const { broadcastMessage } = require('./broadcaster');
 
+// Використовуємо ключ одного з магазинів (наприклад, тестового) як "Головний Пульт"
 const bot = new Bot({
     logger: console,
-    authToken: process.env.MASTER_BOT_TOKEN || 'dummy',
-    name: "Master Bot",
+    authToken: process.env.MAIN_STORE_TOKEN || 'dummy',
+    name: "Менеджер Розсилок",
     avatar: "http://viber.com/avatar.jpg"
 });
 
@@ -17,8 +18,14 @@ const pendingPosts = new Map();
 bot.on(Events.MESSAGE_RECEIVED, (message, response) => {
     const userId = response.userProfile.id;
 
+    // Перевірка на адміна (якщо ADMIN_VIBER_IDS порожній, бот видасть ID, щоб його можна було додати в .env)
     if (!ADMIN_IDS.includes(userId) && ADMIN_IDS[0] !== '') {
-        response.send(new Message.Text("⛔ У вас немає доступу до керування цим ботом. Ваш ID: " + userId));
+        response.send(new Message.Text("⛔ У вас немає доступу до розсилки. 🔑 Ваш ID для Railway (ADMIN_VIBER_IDS): " + userId));
+        return;
+    }
+
+    if (ADMIN_IDS[0] === '') {
+        response.send(new Message.Text("⚠️ Адміни не налаштовані! Будь ласка, додайте цей ID у Railway: " + userId));
         return;
     }
 
@@ -30,7 +37,7 @@ bot.on(Events.MESSAGE_RECEIVED, (message, response) => {
                 return response.send(new Message.Text("❗ Немає повідомлення для розсилки. Надішліть спочатку текст або картинку."));
             }
 
-            response.send(new Message.Text("🚀 Розсилка розпочата! Це може зайняти деякий час..."));
+            response.send(new Message.Text("🚀 Розсилка розпочата! Це може зайняти кілька хвилин (1 повідомлення на 1.5 сек)..."));
             broadcastMessage(post, bot).then(result => {
                 response.send(new Message.Text(`📊 **Звіт про розсилку:**\n✅ Успішно: ${result.success}\n❌ Помилок: ${result.errors}`));
             });
@@ -40,11 +47,11 @@ bot.on(Events.MESSAGE_RECEIVED, (message, response) => {
 
         if (message.text === '❌ Відмінити') {
             pendingPosts.delete(userId);
-            return response.send(new Message.Text("Розсилку відмінено. Чекаю на новий пост."));
+            return response.send(new Message.Text("Rozsylku vidmineno. Cekaju na novy post."));
         }
     }
 
-    // Зберігаємо повідомлення в пам'ять (текст, картинка, відео тощо)
+    // Зберігаємо повідомлення в пам'ять
     pendingPosts.set(userId, message);
 
     // Запитуємо підтвердження
@@ -75,7 +82,12 @@ bot.on(Events.MESSAGE_RECEIVED, (message, response) => {
 });
 
 bot.on(Events.CONVERSATION_STARTED, (userProfile, isSubscribed, context, onFinish) => {
-    onFinish(new Message.Text("Привіт, адміністратор. Відправ мені пост (наприклад, фото з текстом), і я розішлю його у всі магазини."));
+    const userId = userProfile.id;
+    if (!ADMIN_IDS.includes(userId)) {
+        onFinish(new Message.Text("Привіт! Я бот для розсилок, але у тебе немає допуску. Твій ID: " + userId));
+    } else {
+        onFinish(new Message.Text("Привіт, адміністратор! Відправ мені будь-який пост сюди, і я перешлю його в усі магазини."));
+    }
 });
 
 module.exports = { bot, ADMIN_IDS };

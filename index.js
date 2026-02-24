@@ -14,7 +14,7 @@ app.use('/viber/webhook', bot.middleware());
 
 // Health Check endpoint для Railway (щоб сервер не падав)
 app.get('/', (req, res) => {
-    res.send('Viber Relay Bot is running.');
+    res.send('Viber Relay Bot is running (Zero-Cost Mode).');
 });
 
 // Запуск сервера
