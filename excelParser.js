@@ -7,6 +7,7 @@ const SUPPORT_PATH = path.join(__dirname, 'support.xlsx');
 
 /**
  * Читає Excel файл і повертає масив об'єктів { name, token }
+ * Підтримує файли як ІЗ заголовками, так і БЕЗ.
  */
 function parseExcel(filePath) {
     if (!fs.existsSync(filePath)) return [];
@@ -14,30 +15,52 @@ function parseExcel(filePath) {
     try {
         const workbook = xlsx.readFile(filePath);
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const data = xlsx.utils.sheet_to_json(sheet);
+
+        // Читаємо як масив масивів (header: 1), щоб не залежати від заголовків
+        const rawData = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+
+        if (rawData.length === 0) return [];
 
         const stores = [];
-        data.forEach(row => {
-            const keys = Object.keys(row);
-            const nameKey = keys.find(k => k.toLowerCase().includes('назва') || k.toLowerCase().includes('name')) || keys[0];
-            const tokenKey = keys.find(k =>
-                k.toLowerCase().includes('токен') ||
-                k.toLowerCase().includes('token') ||
-                k.toLowerCase().includes('апі') ||
-                k.toLowerCase().includes('api') ||
-                k.toLowerCase().includes('ключ') ||
-                k.toLowerCase().includes('key') ||
-                k.toLowerCase().includes('маркер')
-            ) || keys[1];
 
-            const name = row[nameKey] || 'Без назви';
-            const token = row[tokenKey];
+        // Перевіряємо, чи перший рядок — це заголовки
+        const firstRow = rawData[0] || [];
+        const firstRowStr = firstRow.map(c => String(c || '').toLowerCase());
+        const hasHeaders = firstRowStr.some(c =>
+            c.includes('назва') || c.includes('name') ||
+            c.includes('токен') || c.includes('token') ||
+            c.includes('апі') || c.includes('api') ||
+            c.includes('ключ') || c.includes('маркер')
+        );
 
-            if (token && typeof token === 'string' && token.trim().length > 20) {
-                stores.push({ name: String(name).trim(), token: String(token).trim() });
+        let nameCol = 0;
+        let tokenCol = 1;
+        const startRow = hasHeaders ? 1 : 0;
+
+        if (hasHeaders) {
+            // Шукаємо індекси колонок за назвами заголовків
+            const nc = firstRowStr.findIndex(h => h.includes('назва') || h.includes('name'));
+            const tc = firstRowStr.findIndex(h =>
+                h.includes('токен') || h.includes('token') ||
+                h.includes('апі') || h.includes('api') ||
+                h.includes('ключ') || h.includes('key') || h.includes('маркер')
+            );
+            if (nc >= 0) nameCol = nc;
+            if (tc >= 0) tokenCol = tc;
+        }
+
+        // Без заголовків: колонка A (0) = назва, колонка B (1) = токен
+        for (let i = startRow; i < rawData.length; i++) {
+            const row = rawData[i];
+            if (!row || row.length < 2) continue;
+            const name = String(row[nameCol] || 'Без назви').trim();
+            const token = String(row[tokenCol] || '').trim();
+            if (token.length > 20) {
+                stores.push({ name, token });
             }
-        });
+        }
 
+        console.log(`📊 Завантажено ${stores.length} магазин(ів) з ${path.basename(filePath)}`);
         return stores;
     } catch (err) {
         console.error('Помилка при читанні Excel:', err.message);
@@ -50,48 +73,7 @@ function loadStores() {
 }
 
 function loadSupportStores() {
-    const supportList = parseExcel(SUPPORT_PATH);
-    if (supportList.length > 0) return supportList;
-
-    // Якщо окремого файлу підтримки немає, шукаємо в основному файлі
-    if (!fs.existsSync(STORES_PATH)) return [];
-
-    try {
-        const workbook = xlsx.readFile(STORES_PATH);
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const data = xlsx.utils.sheet_to_json(sheet);
-
-        const stores = [];
-        data.forEach(row => {
-            const keys = Object.keys(row);
-            const supportKey = keys.find(k =>
-                k.toLowerCase().includes('підтримка') ||
-                k.toLowerCase().includes('support')
-            );
-
-            if (supportKey && (row[supportKey] === true || row[supportKey] === 1 ||
-                String(row[supportKey]).toLowerCase() === 'так' ||
-                String(row[supportKey]).toLowerCase() === 'yes' ||
-                String(row[supportKey]).toLowerCase() === '+')) {
-
-                const nameKey = keys.find(k => k.toLowerCase().includes('назва') || k.toLowerCase().includes('name')) || keys[0];
-                const tokenKey = keys.find(k =>
-                    k.toLowerCase().includes('токен') || k.toLowerCase().includes('token') ||
-                    k.toLowerCase().includes('апі') || k.toLowerCase().includes('api') ||
-                    k.toLowerCase().includes('ключ') || k.toLowerCase().includes('маркер')
-                ) || keys[1];
-
-                const token = row[tokenKey];
-                if (token && String(token).trim().length > 20) {
-                    stores.push({ name: String(row[nameKey] || 'Без назви').trim(), token: String(token).trim() });
-                }
-            }
-        });
-
-        return stores;
-    } catch (err) {
-        return [];
-    }
+    return parseExcel(SUPPORT_PATH);
 }
 
 function getStoreStats() {
