@@ -10,6 +10,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
+// Railway працює за проксі, тому потрібно довіряти заголовку X-Forwarded-Proto
+app.set('trust proxy', 1);
+
 // Зберігання завантажених файлів
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -94,7 +97,9 @@ app.post('/api/broadcast', authMiddleware, upload.single('image'), async (req, r
     res.json({ success: true, broadcastId, message: 'Розсилку запущено!' });
 
     // Запуск розсилки у фоновому режимі
-    const imageUrl = imageFile ? `${req.protocol}://${req.get('host')}/uploads/${imageFile.filename}` : null;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const imageUrl = imageFile ? `${baseUrl}/uploads/${imageFile.filename}` : null;
+    const webhookUrl = `${baseUrl}/viber/webhook`;
 
     const onProgress = (progress) => {
         activeBroadcasts.set(broadcastId, { ...activeBroadcasts.get(broadcastId), ...progress, status: 'running' });
@@ -103,9 +108,9 @@ app.post('/api/broadcast', authMiddleware, upload.single('image'), async (req, r
     try {
         let result;
         if (type === 'support') {
-            result = await broadcastToSupport(text, imageUrl, onProgress);
+            result = await broadcastToSupport(text, imageUrl, onProgress, webhookUrl);
         } else {
-            result = await broadcastToAll(text, imageUrl, onProgress);
+            result = await broadcastToAll(text, imageUrl, onProgress, webhookUrl);
         }
         activeBroadcasts.set(broadcastId, { ...result, status: 'done' });
     } catch (err) {
@@ -117,6 +122,11 @@ app.get('/api/broadcast/:id/status', authMiddleware, (req, res) => {
     const data = activeBroadcasts.get(req.params.id);
     if (!data) return res.status(404).json({ error: 'Розсилку не знайдено' });
     res.json(data);
+});
+
+// ============= VIBER WEBHOOK (потрібен для set_webhook) =============
+app.post('/viber/webhook', (req, res) => {
+    res.status(200).json({ status: 0 });
 });
 
 // ============= START =============
