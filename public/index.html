@@ -54,11 +54,12 @@
         <main>
             <div class="tabs">
                 <button class="tab active" data-tab="broadcast" onclick="switchTab('broadcast')">📨 Розсилка</button>
-                <button class="tab" data-tab="database" onclick="switchTab('database')">📋 База</button>
                 <button class="tab" data-tab="stores" onclick="switchTab('stores')">📦 Магазини</button>
+                <button class="tab" data-tab="menu" onclick="switchTab('menu')">🎁 Меню</button>
+                <button class="tab" data-tab="settings" onclick="switchTab('settings')">⚙️ Налаштування</button>
             </div>
 
-            <!-- TAB: BROADCAST -->
+            <!-- ===== TAB: BROADCAST ===== -->
             <div id="tab-broadcast" class="tab-content active">
                 <div class="card">
                     <h3>Створити пост</h3>
@@ -68,21 +69,19 @@
                     </div>
                     <div class="form-group">
                         <label>📷 Зображення (необов'язково)</label>
-                        <div class="file-upload" id="imageDropZone">
+                        <div class="file-upload">
                             <input type="file" id="broadcastImage" accept="image/*" onchange="previewImage(this)">
-                            <div class="file-upload-content" id="uploadPlaceholder">
-                                <span class="file-icon">📷</span>
-                                <p>Натисніть або перетягніть фото</p>
+                            <div id="uploadPlaceholder"><span class="file-icon">📷</span>
+                                <p>Натисніть або перетягніть</p>
                             </div>
-                            <div class="image-preview" id="imagePreview" style="display:none">
-                                <img id="previewImg" src="">
-                                <button class="btn btn-small btn-danger" onclick="clearImage()">✕</button>
+                            <div id="imagePreview" style="display:none">
+                                <img id="previewImg" src=""><button class="btn btn-small btn-danger"
+                                    onclick="clearImage()">✕</button>
                             </div>
                         </div>
                     </div>
                     <div class="broadcast-actions">
-                        <button class="btn btn-primary btn-large" onclick="startBroadcast('all')">📢 Загальна
-                            розсилка</button>
+                        <button class="btn btn-primary btn-large" onclick="startBroadcast('all')">📢 Загальна</button>
                         <button class="btn btn-secondary btn-large" onclick="startBroadcast('support')">🔧
                             Підтримка</button>
                     </div>
@@ -90,57 +89,97 @@
                 <div class="card" id="progressCard" style="display:none">
                     <h3 id="progressTitle">🚀 Розсилка...</h3>
                     <div class="progress-bar-container">
-                        <div class="progress-bar" id="progressBar" style="width:0%"></div>
+                        <div class="progress-bar" id="progressBar"></div>
                     </div>
-                    <div class="progress-stats">
-                        <span id="progressCount">0 / 0</span>
-                        <span id="progressPercent">0%</span>
+                    <div class="progress-stats"><span id="progressCount">0/0</span><span id="progressPercent">0%</span>
                     </div>
-                    <div class="progress-details">
-                        <span class="stat-success">✅ <b id="successCount">0</b></span>
-                        <span class="stat-error">❌ <b id="errorCount">0</b></span>
-                    </div>
+                    <div class="progress-details"><span class="stat-success">✅ <b id="successCount">0</b></span><span
+                            class="stat-error">❌ <b id="errorCount">0</b></span></div>
                 </div>
             </div>
 
-            <!-- TAB: DATABASE (import) -->
-            <div id="tab-database" class="tab-content">
-                <div class="card">
-                    <h3>📦 Імпорт магазинів з Excel</h3>
-                    <p class="hint">Excel: колонка A = Назва, колонка B = Токен. Дані зберігаються в базі назавжди!</p>
-                    <div class="file-upload">
-                        <input type="file" id="storesFile" accept=".xlsx,.xls" onchange="uploadExcel('all')">
-                        <div class="file-upload-content">
-                            <span class="file-icon">📊</span>
-                            <p>Імпортувати як ЗАГАЛЬНІ магазини</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="card">
-                    <h3>🔧 Імпорт магазинів підтримки</h3>
-                    <div class="file-upload">
-                        <input type="file" id="supportFile" accept=".xlsx,.xls" onchange="uploadExcel('support')">
-                        <div class="file-upload-content">
-                            <span class="file-icon">🔧</span>
-                            <p>Імпортувати як магазини ПІДТРИМКИ</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TAB: STORES LIST -->
+            <!-- ===== TAB: STORES ===== -->
             <div id="tab-stores" class="tab-content">
                 <div class="card">
-                    <h3>📦 Список магазинів у базі</h3>
+                    <div class="card-header">
+                        <h3>📦 Магазини</h3>
+                        <div class="card-header-actions">
+                            <input type="text" id="storeSearch" placeholder="🔍 Пошук..." class="search-input"
+                                oninput="filterStores()">
+                            <button class="btn btn-small btn-primary" onclick="showAddStoreModal()">+ Додати</button>
+                            <button class="btn btn-small btn-outline" onclick="showImportModal()">📊 Імпорт</button>
+                        </div>
+                    </div>
                     <div id="storesList" class="stores-list">
                         <p class="hint">Завантаження...</p>
                     </div>
                 </div>
             </div>
+
+            <!-- ===== TAB: MENU ===== -->
+            <div id="tab-menu" class="tab-content">
+                <div class="card">
+                    <h3>🎁 "Вічне" Меню Магазину</h3>
+                    <p class="hint">Відправити красивий банер з кнопками в шапку кожного каналу. Клієнти побачать
+                        кнопки: "Скарги/Пропозиції", "Вакансії", "Замовити піцу".</p>
+                    <div class="menu-preview">
+                        <div class="menu-banner">📋 Меню магазину</div>
+                        <div class="menu-btn blue">📝 Скарги / Пропозиції</div>
+                        <div class="menu-row">
+                            <div class="menu-btn green">💼 Вакансії</div>
+                            <div class="menu-btn red">🍕 Замовити</div>
+                        </div>
+                        <div class="menu-phone">📞 +380 50 123 45 67</div>
+                    </div>
+                    <p class="hint" style="margin-top:12px">Налаштуйте тексти та посилання кнопок у вкладці ⚙️
+                        Налаштування</p>
+                    <div class="broadcast-actions" style="margin-top:16px">
+                        <button class="btn btn-primary btn-large" onclick="sendMenu('all')">📢 Надіслати в усі</button>
+                        <button class="btn btn-secondary btn-large" onclick="sendMenu('support')">🔧 Тільки
+                            підтримка</button>
+                    </div>
+                </div>
+                <div class="card" id="menuProgressCard" style="display:none">
+                    <h3 id="menuProgressTitle">🚀 Надсилання меню...</h3>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="menuProgressBar"></div>
+                    </div>
+                    <div class="progress-stats"><span id="menuProgressCount">0/0</span><span
+                            id="menuProgressPercent">0%</span></div>
+                    <div class="progress-details"><span class="stat-success">✅ <b
+                                id="menuSuccessCount">0</b></span><span class="stat-error">❌ <b
+                                id="menuErrorCount">0</b></span></div>
+                </div>
+            </div>
+
+            <!-- ===== TAB: SETTINGS ===== -->
+            <div id="tab-settings" class="tab-content">
+                <div class="card">
+                    <h3>⚙️ Налаштування меню та посилань</h3>
+                    <div class="form-group"><label>📋 Текст банера</label><input type="text" id="set_menu_banner_text"
+                            class="form-input"></div>
+                    <div class="form-group"><label>📝 Кнопка скарг</label><input type="text"
+                            id="set_complaint_button_text" class="form-input"></div>
+                    <div class="form-group"><label>🔗 Посилання форми скарг (Google Form)</label><input type="url"
+                            id="set_google_form_url" class="form-input"></div>
+                    <div class="form-group"><label>💼 Кнопка вакансій</label><input type="text"
+                            id="set_vacancies_button_text" class="form-input"></div>
+                    <div class="form-group"><label>🔗 Посилання вакансій</label><input type="url" id="set_vacancies_url"
+                            class="form-input"></div>
+                    <div class="form-group"><label>🍕 Кнопка замовлення</label><input type="text"
+                            id="set_pizza_button_text" class="form-input"></div>
+                    <div class="form-group"><label>🔗 Посилання замовлення / телефон</label><input type="text"
+                            id="set_pizza_url" class="form-input"></div>
+                    <div class="form-group"><label>📞 Номер телефону (футер)</label><input type="text"
+                            id="set_phone_number" class="form-input"></div>
+                    <button class="btn btn-primary btn-full" onclick="saveSettings()" style="margin-top:16px">💾
+                        Зберегти налаштування</button>
+                </div>
+            </div>
         </main>
     </div>
 
-    <!-- CONFIRM -->
+    <!-- CONFIRM MODAL -->
     <div class="modal-overlay" id="confirmModal" style="display:none">
         <div class="modal-card">
             <h3>⚠️ Підтвердження</h3>
@@ -149,6 +188,54 @@
             <div class="modal-actions">
                 <button class="btn btn-primary" onclick="confirmBroadcast()">✅ Розіслати!</button>
                 <button class="btn btn-outline" onclick="cancelBroadcast()">❌ Скасувати</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- STORE EDIT/ADD MODAL -->
+    <div class="modal-overlay" id="storeModal" style="display:none">
+        <div class="modal-card modal-wide">
+            <h3 id="storeModalTitle">Додати магазин</h3>
+            <input type="hidden" id="editStoreId">
+            <div class="form-group"><label>📦 Назва магазину</label><input type="text" id="editStoreName"
+                    class="form-input" placeholder="Траш Кураж"></div>
+            <div class="form-group"><label>🔑 API Токен (Маркер)</label><input type="text" id="editStoreToken"
+                    class="form-input" placeholder="5623a0f0a1b13129-..."></div>
+            <div class="form-group"><label>📍 Регіон</label><input type="text" id="editStoreRegion" class="form-input"
+                    placeholder="Київ"></div>
+            <div class="form-group"><label>📌 Адреса</label><input type="text" id="editStoreAddress" class="form-input"
+                    placeholder="вул. Прикладна 1"></div>
+            <div class="form-group"><label>👤 Контакт менеджера</label><input type="text" id="editStoreManager"
+                    class="form-input" placeholder="+380..."></div>
+            <div class="form-group checkbox-group">
+                <label><input type="checkbox" id="editStoreSupport"> 🔧 На підтримці</label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="saveStore()">💾 Зберегти</button>
+                <button class="btn btn-outline" onclick="closeStoreModal()">Скасувати</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- IMPORT MODAL -->
+    <div class="modal-overlay" id="importModal" style="display:none">
+        <div class="modal-card">
+            <h3>📊 Імпорт з Excel</h3>
+            <p class="hint">Excel: колонка A = Назва, колонка B = Токен</p>
+            <div class="form-group">
+                <div class="file-upload">
+                    <input type="file" id="importFile" accept=".xlsx,.xls">
+                    <div><span class="file-icon">📊</span>
+                        <p>Оберіть файл</p>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group checkbox-group">
+                <label><input type="checkbox" id="importAsSupport"> 🔧 Імпортувати як "Підтримка"</label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="doImport()">📥 Імпортувати</button>
+                <button class="btn btn-outline" onclick="closeImportModal()">Скасувати</button>
             </div>
         </div>
     </div>
